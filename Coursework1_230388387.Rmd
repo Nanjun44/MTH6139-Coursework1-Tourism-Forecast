@@ -1,0 +1,128 @@
+---
+title: "Forecasting of Tourism to Japan" 
+subtitle: "MTH6139 Coursework 1" 
+author: "Nanjun Dai" 
+date: " 11th March 2026" 
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: spacelab 
+    highlight: tango
+---
+ 
+```{r, echo=FALSE}
+# This code will display the QMUL logo at the top right of the page
+# Do not change this code
+htmltools::img(src = knitr::image_uri("images/QMlogo.png"),
+               alt = 'logo',
+               style = 'position:absolute; top:0; right:0; padding:10px; width:20%;')
+```
+
+# Section 1: Introduction of this project
+
+Background: Tourism has become an important part of many economies. In recent years, Japan has experienced a significant increase in international tourist arrivals.
+
+Facts: Tourist arrivals usually show both long-term trends and seasonal patterns. For instance, the number of visitors often changes across months due to holidays and travel behaviour.
+
+In this project, monthly tourist arrivals to Japan from 2003 to 2024 are analyzed. We use the Prophet model to generate the trend and seasonal patterns, and to produce a short-term forecast of future tourist arrivals.
+
+# Section 2: Dataset and Organizaing
+The dataset used in this project contains monthly international tourist arrivals to Japan from 2003 to 2024.
+
+Monthly values were extracted from each sheet and combined into a single time series. A sequence of monthly dates was then created and matched with the extracted 264 observations to form the final dataset used for modelling.
+
+```{r}
+# Read the Excel Sheet of dataset
+library(readxl)
+
+file_path <- "20260218_1615-5.xlsx"
+
+Datasheet <- excel_sheets(file_path) 
+targetyears <- sort(Datasheet[Datasheet >= "2003" & Datasheet <= "2024"]) # sort data, only 2003-2024 is needed
+
+raw_list <- lapply(targetyears, function(s) {read_excel(file_path, sheet = s, skip = 4, col_names = FALSE, col_types = "text")}) # Skip some irrelevant cells
+
+extract_monthly <- function(df) {
+  x <- unlist(df[1, ], use.names = FALSE) # only consider the fist row
+  cleannumbers <- x[grepl("^[0-9,]+$", x)] # as the desired value happened in every other column, filter out the numbers, only allows numbers and ","
+  as.numeric(gsub(",", "", cleannumbers))[1:12] # cleaning, turn into pure numeric numbers
+} # Extract desired monthly data
+
+monthly_tourists <- unlist(lapply(raw_list, extract_monthly), use.names = FALSE) # Merge monthly data
+
+tourism_dates <- seq(from = as.Date("2003-01-01"), to = as.Date("2024-12-01"), by = "month") 
+
+prophet_data <- data.frame( ds = tourism_dates, y = monthly_tourists) # construct a prophet
+```
+# Visualizing the original dataset
+```{r}
+plot(prophet_data$ds, prophet_data$y)
+```
+
+
+# Section 3: Prophet model with different settings
+To model the time series, the Prophet forecasting model was used and capturing long-term trends and seasonal patterns in time series data. The model was fitted to the monthly tourist arrivals and then used to generate forecasts for the next 24 months. In this project, 3 different parameters [0.05, 0.3, 0.9] were used to show the ability to forecasting and fitting.
+
+For the coding, we installed the prophet and ggplot, and keep the y-axis scale (0 - 6000000) all the same.
+
+# Section 3.0: Explaination of changepoint_prior_scale
+This parameter controls how easily the trend is allowed to change over time. A smaller value forces the trend to remain smooth while a larger value allows the model to adapt more strongly to changes in the data.
+
+# Section 3.1: Model 1
+```{r}
+# Model 1: changepoint.prior.scale = 0.05
+library(prophet)
+library(ggplot2)
+
+model1 <- prophet (prophet_data, yearly.seasonality = TRUE, changepoint.prior.scale = 0.05)
+future_dates1 <- make_future_dataframe (model1, periods = 24, freq = "month")
+forecast1 <- predict(model1, future_dates1)
+```
+# Visualizing the Forecast and Components
+```{r}
+plot(model1, forecast1) + ggtitle("Prophet Forecast (changepoint.prior.scale = 0.05)") + ylim(0, 6000000)
+prophet_plot_components(model1, forecast1)
+```
+# Section 3.2: Model 2
+```{r}
+# Model 2: changepoint.prior.scale = 0.3
+
+model2 <- prophet (prophet_data, yearly.seasonality = TRUE, changepoint.prior.scale = 0.3)
+future_dates2 <- make_future_dataframe (model2, periods = 24, freq = "month")
+forecast2 <- predict(model2, future_dates2)
+```
+# Visualizing the Forecast and Components
+```{r}
+plot(model2, forecast2) + ggtitle("Prophet Forecast (changepoint.prior.scale = 0.3)") + ylim(0, 6000000)
+prophet_plot_components(model2, forecast2)
+```
+# Section 3.3: Model 2
+```{r}
+# Model 3: changepoint.prior.scale = 0.9
+model3 <- prophet (prophet_data, yearly.seasonality = TRUE, changepoint.prior.scale = 0.9)
+future_dates3 <- make_future_dataframe (model3, periods = 24, freq = "month")
+forecast3 <- predict(model3, future_dates3)
+
+```
+# Visualizing the Forecast and Components
+```{r}
+plot(model3, forecast3) + ggtitle("Prophet Forecast (changepoint.prior.scale = 0.9)") + ylim(0,6000000)
+prophet_plot_components(model3, forecast3)
+```
+
+# Conclusion
+As a result, the data shows a clear long-term upward trend with noticeable seasonal fluctuations and a large structural break during the COVID-19 period. 
+
+A small value (0.05) produced an overly smooth trend, the trend component remains almost linear and fails to capture major structural changes in the data.
+A large value (0.9) led to overfitting and unrealistic forecasts. The model becomes overly sensitive to fluctuations in the data, especially no zigzag blue predicted during sharp drop in pandemic and narrower band.
+An intermediate value (0.3) provided a more reasonable outcome.
+
+Seasonality: The yearly graph shows seasonal fluctuations in tourist arrivals. Visitor numbers tend to be higher during certain periods of the year and lower during others i.e Sakura blossom season during March, reflecting seasonal travel patterns. This may be related to holiday periods, favorable weather conditions, and peak tourism seasons in Japan.
+
+Overall, the Prophet model can capture the general pattern of the series, although extreme shocks such as the COVID-19 remain difficult to forecast accurately.
+
+
+
+# References
+- Japan National Tourism Organization (JNTO). International Visitor Statistics. <https://www.jnto.go.jp/statistics/data/_files/20260218_1615-5.xlsx>
